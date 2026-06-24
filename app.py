@@ -36,7 +36,16 @@ st.write("Upload vendor risk files, provide custom instructions, and generate le
 # --- 1 & 2. FILE INPUT & CUSTOM PROMPT INTERFACE ---
 with st.sidebar:
     st.header("🔑 Configuration")
-    api_key = st.text_input("Gemini API Key", type="password", help="Required to run live LLM analysis.")
+    api_key_input = st.text_input("Gemini API Key", type="password", help="Leave blank if configured in Streamlit Secrets.")
+    
+    # Try to grab from input first, fallback to Streamlit secrets if available
+    api_key = api_key_input
+    if not api_key:
+        try:
+            if "GEMINI_API_KEY" in st.secrets:
+                api_key = st.secrets["GEMINI_API_KEY"]
+        except Exception:
+            pass
     
     st.header("1. Upload Vendor Files")
     uploaded_files = st.file_uploader(
