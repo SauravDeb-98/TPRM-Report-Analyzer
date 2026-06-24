@@ -36,32 +36,42 @@ def analyze_vendor_document(api_key, document_text, custom_prompt):
         if not valid_models:
             return {"error": "No generative models found for this API key. Please check your Google AI Studio account."}
             
-        # Prioritize 1.5 flash, then any flash, then anything
-        selected_model = valid_models[0]
-        preferences = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-pro']
+        # Build ordered list of models to try
+        models_to_try = []
+        preferences = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-pro']
         for pref in preferences:
-            found = False
             for vm in valid_models:
-                if pref in vm:
-                    selected_model = vm
-                    found = True
-                    break
-            if found:
-                break
-                
-        model = genai.GenerativeModel(model_name=selected_model)
-        response = model.generate_content(prompt)
-        
-        # Parse JSON - handle markdown code blocks if the model included them
-        text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
+                if pref in vm and vm not in models_to_try:
+                    models_to_try.append(vm)
+                    
+        if not models_to_try:
+            models_to_try = valid_models
             
-        result = json.loads(text.strip())
-        return result
+        last_error = ""
+        for selected_model in models_to_try:
+            try:
+                model = genai.GenerativeModel(model_name=selected_model)
+                response = model.generate_content(prompt)
+                
+                # Parse JSON
+                text = response.text.strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                if text.startswith("```"):
+                    text = text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                    
+                result = json.loads(text.strip())
+                return result
+            except Exception as e:
+                last_error = str(e)
+                # If the quota limit is hard-coded to 0 (model unavailable for this tier/region), try the next model!
+                if "limit: 0" in last_error or "404" in last_error:
+                    continue
+                # If it's a standard rate limit (e.g. 15 per minute), return it so app.py can wait 45s and retry
+                return {"error": f"API Error (Model: {selected_model}): {last_error}"}
+                
+        return {"error": f"All available models failed or have 0 quota. Last error: {last_error}"}
     except Exception as e:
-        return {"error": f"API Error (Model: {selected_model if 'selected_model' in locals() else 'Unknown'}): {str(e)}"}
+        return {"error": f"Global API Error: {str(e)}"}
