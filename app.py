@@ -175,7 +175,12 @@ def generate_pdf(results):
 # Main Execution Flow
 if analyze_btn:
     if not api_key:
-        st.error("Please enter your Gemini API Key in the sidebar.")
+        try:
+            available_secrets = list(st.secrets.keys())
+        except Exception:
+            available_secrets = ["No secrets found at all"]
+            
+        st.error(f"Please enter your Gemini API Key in the sidebar.\\n\\n**(Debug Info)** We checked Streamlit Cloud Secrets but couldn't find it. Found keys: {available_secrets}. Please double check you saved `GEMINI_API_KEY = \"...\"` in the Advanced Settings.")
     elif not uploaded_files:
         st.error("Please upload at least one vendor file.")
     else:
